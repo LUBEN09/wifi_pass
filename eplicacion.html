@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explicación del Generador de Contraseñas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #2E86C1; }
+        code { background-color: #F3F3F3; padding: 4px; display: block; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <h1>Explicación del Programa de Generación y Verificación de Contraseñas</h1>
+    
+    <p>Este programa en Python genera contraseñas seguras, verifica si han sido filtradas en la base de datos de Have I Been Pwned, y las almacena cifradas con bcrypt. A continuación, se detallan sus componentes:</p>
+
+    <h2>1️⃣ Importación de Módulos</h2>
+    <p>Para que el programa funcione, se requieren varias bibliotecas:</p>
+    <code>
+import secrets  # Generar contraseñas aleatorias
+import string   # Conjunto de caracteres
+import json, csv  # Guardado en archivos
+import hashlib  # Hash para comparación con API
+import requests # Consultas a la API de Have I Been Pwned
+import bcrypt   # Cifrado seguro
+import random   # Generación de longitudes aleatorias
+    </code>
+
+    <h2>2️⃣ Generación de Contraseñas Seguras</h2>
+    <p>La función <code>generar_contrasena()</code> crea contraseñas con longitud aleatoria (entre 4 y 12 caracteres) asegurando que contengan:</p>
+    <ul>
+        <li>Al menos una letra minúscula</li>
+        <li>Al menos una letra mayúscula</li>
+        <li>Al menos un número</li>
+        <li>Al menos un carácter especial</li>
+    </ul>
+    <code>
+def generar_contrasena():
+    longitud = random.randint(4, 12)
+    caracteres = string.ascii_letters + string.digits + string.punctuation
+    
+    while True:
+        contrasena = ''.join(secrets.choice(caracteres) for _ in range(longitud))
+        if (any(c.islower() for c in contrasena) and
+            any(c.isupper() for c in contrasena) and
+            any(c.isdigit() for c in contrasena) and
+            any(c in string.punctuation for c in contrasena)):
+            return contrasena
+    </code>
+
+    <h2>3️⃣ Cifrado de Contraseñas con bcrypt</h2>
+    <p>La función <code>cifrar_contrasena()</code> usa bcrypt para asegurar que las contraseñas no se almacenen en texto plano.</p>
+    <code>
+def cifrar_contrasena(contrasena):
+    salt = bcrypt.gensalt()
+    hash_cifrado = bcrypt.hashpw(contrasena.encode(), salt)
+    return hash_cifrado.decode()
+    </code>
+
+    <h2>4️⃣ Verificación de Contraseñas en Filtraciones</h2>
+    <p>La función <code>verificar_fuga_contrasena()</code> consulta la API de Have I Been Pwned para ver si una contraseña ha aparecido en una filtración.</p>
+    <code>
+def verificar_fuga_contrasena(contrasena):
+    sha1_contrasena = hashlib.sha1(contrasena.encode()).hexdigest().upper()
+    prefijo, sufijo = sha1_contrasena[:5], sha1_contrasena[5:]
+
+    url = f"https://api.pwnedpasswords.com/range/{prefijo}"
+    respuesta = requests.get(url)
+
+    if respuesta.status_code == 200:
+        hashes = respuesta.text.splitlines()
+        for hash in hashes:
+            hash_sufijo, cantidad = hash.split(":")
+            if sufijo == hash_sufijo:
+                return True, cantidad
+        return False, 0
+    else:
+        return False, 0
+    </code>
+
+    <h2>5️⃣ Almacenamiento en Archivos</h2>
+    <p>Las contraseñas se guardan en archivos diferenciados:</p>
+    <ul>
+        <li><strong>contraseñas_seguras.txt:</strong> Contraseñas que no han sido filtradas.</li>
+        <li><strong>contraseñas_filtradas.txt:</strong> Contraseñas que han aparecido en filtraciones.</li>
+        <li><strong>contraseñas.txt:</strong> Archivo general con todas las contraseñas.</li>
+    </ul>
+    <code>
+def guardar_en_txt(contenido, archivo):
+    with open(archivo, "a") as f:
+        f.write(contenido + "\n")
+    </code>
+
+    <h2>6️⃣ Generación, Verificación y Guardado de Contraseñas</h2>
+    <p>El programa crea 50 contraseñas, verifica si están comprometidas y las almacena cifradas.</p>
+    <code>
+def generar_y_guardar_contrasenas(cantidad=50):
+    for _ in range(cantidad):
+        nueva_contrasena = generar_contrasena()
+        es_filtrada, cantidad = verificar_fuga_contrasena(nueva_contrasena)
+        hash_cifrado = cifrar_contrasena(nueva_contrasena)
+
+        if es_filtrada:
+            print(f"⚠ {nueva_contrasena} ha sido comprometida en {cantidad} filtraciones.")
+            guardar_en_txt(f"{nueva_contrasena} | HASH: {hash_cifrado}", "contraseñas_filtradas.txt")
+        else:
+            print(f"✅ {nueva_contrasena} es segura.")
+            guardar_en_txt(f"{nueva_contrasena} | HASH: {hash_cifrado}", "contraseñas_seguras.txt")
+
+        guardar_en_txt(f"{nueva_contrasena} | HASH: {hash_cifrado}", "contraseñas.txt")
+
+generar_y_guardar_contrasenas()
+print("🔐 Se generaron y verificaron 50 contraseñas.")
+    </code>
+
+    <h2>Conclusión</h2>
+    <p>Este programa ofrece una manera eficiente de generar y verificar contraseñas seguras. Puedes expandirlo agregando una interfaz gráfica o integrándolo en una aplicación web.</p>
+
+</body>
+</html>
